@@ -41,8 +41,6 @@
       { "command": "csharpExtendedNavigation.navigateForward", "title": "C#: Navigate Forward", "category": "C# Navigation" }
     ],
     "keybindings": [
-      { "command": "csharpExtendedNavigation.nextContext", "key": "alt+down", "when": "editorTextFocus && editorLangId == csharp" },
-      { "command": "csharpExtendedNavigation.previousContext", "key": "alt+up", "when": "editorTextFocus && editorLangId == csharp" },
       { "command": "csharpExtendedNavigation.nextMethod", "key": "ctrl+alt+down", "mac": "cmd+alt+down", "when": "editorTextFocus && editorLangId == csharp" },
       { "command": "csharpExtendedNavigation.previousMethod", "key": "ctrl+alt+up", "mac": "cmd+alt+up", "when": "editorTextFocus && editorLangId == csharp" },
       { "command": "csharpExtendedNavigation.contextPicker", "key": "ctrl+shift+alt+n", "mac": "cmd+shift+alt+n", "when": "editorTextFocus && editorLangId == csharp" },
