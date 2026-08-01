@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { belongsToGroup, containingSymbol, ContextGroup, ContextSymbol, flattenSymbols, nextIndex, symbolKindName } from './navigation';
 
-class Navigator {
+export class Navigator {
   private readonly backStack: vscode.Location[] = [];
   private readonly forwardStack: vscode.Location[] = [];
   private readonly edits: vscode.Location[] = [];
@@ -22,7 +22,9 @@ class Navigator {
   async move(group: ContextGroup, direction: 1 | -1): Promise<void> {
     const editor = this.csharpEditor();
     if (!editor) return;
-    const symbols = (await this.symbols(editor.document)).filter(symbol => belongsToGroup(symbol, group, this.config().get('includeLocalVariables', true)));
+    const provided = await this.symbols(editor.document);
+    if (!provided) return;
+    const symbols = provided.filter(symbol => belongsToGroup(symbol, group, this.config().get('includeLocalVariables', true)));
     const index = nextIndex(symbols.map(symbol => symbol.selectionRange.start), editor.selection.active, direction, this.config().get('wrapAround', true));
     if (index === undefined) return this.inform(`No ${group === 'all' ? 'context' : group} ${direction > 0 ? 'below' : 'above'} the cursor.`);
     await this.go(new vscode.Location(editor.document.uri, symbols[index].selectionRange));
@@ -31,7 +33,9 @@ class Navigator {
   async containing(): Promise<void> {
     const editor = this.csharpEditor();
     if (!editor) return;
-    const target = containingSymbol(await this.symbols(editor.document), editor.selection.active);
+    const symbols = await this.symbols(editor.document);
+    if (!symbols) return;
+    const target = containingSymbol(symbols, editor.selection.active);
     if (!target) return this.inform('No containing C# context found.');
     await this.go(new vscode.Location(editor.document.uri, target.selectionRange));
   }
@@ -39,7 +43,9 @@ class Navigator {
   async pick(): Promise<void> {
     const editor = this.csharpEditor();
     if (!editor) return;
-    const symbols = (await this.symbols(editor.document)).filter(symbol => belongsToGroup(symbol, 'all', this.config().get('includeLocalVariables', true)));
+    const provided = await this.symbols(editor.document);
+    if (!provided) return;
+    const symbols = provided.filter(symbol => belongsToGroup(symbol, 'all', this.config().get('includeLocalVariables', true)));
     const picked = await vscode.window.showQuickPick(symbols.map(symbol => ({
       label: `$(${this.icon(symbol.kind)}) ${symbol.name}`,
       description: `${symbolKindName(symbol.kind)} · line ${symbol.selectionRange.start.line + 1}`,
@@ -52,7 +58,13 @@ class Navigator {
   async usage(direction: 1 | -1): Promise<void> {
     const editor = this.csharpEditor();
     if (!editor) return;
-    const references = await vscode.commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', editor.document.uri, editor.selection.active) ?? [];
+    let references: vscode.Location[];
+    try {
+      references = await vscode.commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', editor.document.uri, editor.selection.active) ?? [];
+    } catch (error) {
+      this.failure('C# usage provider is not ready.', 'Reference provider failed', error);
+      return;
+    }
     const unique = references.filter((location, index, all) => all.findIndex(other => other.uri.toString() === location.uri.toString() && other.range.start.isEqual(location.range.start)) === index);
     if (!unique.length) return this.inform('No usages found. Ensure the C# language server is ready.');
     unique.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()) || a.range.start.compareTo(b.range.start));
@@ -70,15 +82,22 @@ class Navigator {
 
   async history(direction: 'back' | 'forward'): Promise<void> {
     const source = direction === 'back' ? this.backStack : this.forwardStack;
-    const target = source.pop();
+    const target = source.at(-1);
     if (!target) return this.inform(`Navigation ${direction} history is empty.`);
     const current = this.currentLocation();
+    if (!await this.reveal(target)) return;
+    source.pop();
     if (current) (direction === 'back' ? this.forwardStack : this.backStack).push(current);
-    await this.reveal(target);
   }
 
-  private async symbols(document: vscode.TextDocument): Promise<ContextSymbol[]> {
-    const result = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>('vscode.executeDocumentSymbolProvider', document.uri);
+  private async symbols(document: vscode.TextDocument): Promise<ContextSymbol[] | undefined> {
+    let result: (vscode.DocumentSymbol | vscode.SymbolInformation)[] | undefined;
+    try {
+      result = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>('vscode.executeDocumentSymbolProvider', document.uri);
+    } catch (error) {
+      this.failure('C# symbol provider is not ready.', `Document symbol provider failed for ${document.uri.toString()}`, error);
+      return undefined;
+    }
     if (!result?.length) { this.inform('No C# symbols found. Ensure the C# language server is installed and ready.'); return []; }
     if (result[0] instanceof vscode.DocumentSymbol) return flattenSymbols(result as vscode.DocumentSymbol[]);
     return (result as vscode.SymbolInformation[]).map(symbol => ({ name: symbol.name, detail: symbol.containerName, kind: symbol.kind, range: symbol.location.range, selectionRange: symbol.location.range, depth: 0 }));
@@ -86,12 +105,12 @@ class Navigator {
 
   private async go(target: vscode.Location): Promise<void> {
     const current = this.currentLocation();
+    if (!await this.reveal(target)) return;
     if (current && (current.uri.toString() !== target.uri.toString() || !current.range.start.isEqual(target.range.start))) this.backStack.push(current);
     this.forwardStack.length = 0;
-    await this.reveal(target);
   }
 
-  private async reveal(target: vscode.Location): Promise<void> {
+  private async reveal(target: vscode.Location): Promise<boolean> {
     this.navigating = true;
     try {
       const document = await vscode.workspace.openTextDocument(target.uri);
@@ -100,6 +119,10 @@ class Navigator {
       const mode = this.config().get<'center' | 'top' | 'default'>('revealPosition', 'center');
       const reveal = mode === 'center' ? vscode.TextEditorRevealType.InCenter : mode === 'top' ? vscode.TextEditorRevealType.AtTop : vscode.TextEditorRevealType.Default;
       editor.revealRange(target.range, reveal);
+      return true;
+    } catch (error) {
+      this.failure('Unable to open or reveal the navigation target.', `Navigation failed for ${target.uri.toString()}`, error);
+      return false;
     } finally { this.navigating = false; }
   }
 
@@ -114,6 +137,11 @@ class Navigator {
   }
   private config(): vscode.WorkspaceConfiguration { return vscode.workspace.getConfiguration('csharpExtendedNavigation'); }
   private inform(message: string): void { this.output.appendLine(message); void vscode.window.setStatusBarMessage(message, 3000); }
+  private failure(message: string, context: string, error: unknown): void {
+    this.inform(message);
+    const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+    this.output.appendLine(`${context}: ${detail}`);
+  }
   private icon(kind: vscode.SymbolKind): string {
     if ([vscode.SymbolKind.Method, vscode.SymbolKind.Function, vscode.SymbolKind.Constructor].includes(kind)) return 'symbol-method';
     if ([vscode.SymbolKind.Class, vscode.SymbolKind.Interface, vscode.SymbolKind.Struct].includes(kind)) return 'symbol-class';
