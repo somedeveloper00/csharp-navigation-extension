@@ -1,15 +1,18 @@
 import * as vscode from 'vscode';
 import { belongsToGroup, containingSymbol, ContextGroup, ContextSymbol, flattenSymbols, nextIndex, symbolKindName } from './navigation';
+import { VersionedCache } from './symbolCache';
 
-class Navigator {
+export class Navigator {
   private readonly backStack: vscode.Location[] = [];
   private readonly forwardStack: vscode.Location[] = [];
   private readonly edits: vscode.Location[] = [];
   private navigating = false;
+  private readonly symbolCache = new VersionedCache<ContextSymbol[]>();
 
   constructor(private readonly output: vscode.OutputChannel) {}
 
   recordEdit(event: vscode.TextDocumentChangeEvent): void {
+    this.invalidateSymbols(event.document);
     if (this.navigating || event.document.languageId !== 'csharp' || !event.contentChanges.length) return;
     const position = event.contentChanges[0].range.start;
     const last = this.edits.at(-1);
@@ -18,6 +21,12 @@ class Navigator {
       if (this.edits.length > 100) this.edits.shift();
     }
   }
+
+  invalidateSymbols(document: vscode.TextDocument): void {
+    this.symbolCache.delete(document.uri.toString());
+  }
+
+  clearSymbolCache(): void { this.symbolCache.clear(); }
 
   async move(group: ContextGroup, direction: 1 | -1): Promise<void> {
     const editor = this.csharpEditor();
@@ -78,10 +87,12 @@ class Navigator {
   }
 
   private async symbols(document: vscode.TextDocument): Promise<ContextSymbol[]> {
-    const result = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>('vscode.executeDocumentSymbolProvider', document.uri);
-    if (!result?.length) { this.inform('No C# symbols found. Ensure the C# language server is installed and ready.'); return []; }
-    if (result[0] instanceof vscode.DocumentSymbol) return flattenSymbols(result as vscode.DocumentSymbol[]);
-    return (result as vscode.SymbolInformation[]).map(symbol => ({ name: symbol.name, detail: symbol.containerName, kind: symbol.kind, range: symbol.location.range, selectionRange: symbol.location.range, depth: 0 }));
+    return this.symbolCache.get(document.uri.toString(), document.version, async () => {
+      const result = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>('vscode.executeDocumentSymbolProvider', document.uri);
+      if (!result?.length) { this.inform('No C# symbols found. Ensure the C# language server is installed and ready.'); return []; }
+      if (result[0] instanceof vscode.DocumentSymbol) return flattenSymbols(result as vscode.DocumentSymbol[]);
+      return (result as vscode.SymbolInformation[]).map(symbol => ({ name: symbol.name, detail: symbol.containerName, kind: symbol.kind, range: symbol.location.range, selectionRange: symbol.location.range, depth: 0 }));
+    }, symbols => symbols.length > 0);
   }
 
   private async go(target: vscode.Location): Promise<void> {
@@ -135,7 +146,15 @@ export function activate(context: vscode.ExtensionContext): void {
     navigateBack: () => navigator.history('back'), navigateForward: () => navigator.history('forward')
   };
   for (const [name, handler] of Object.entries(commands)) context.subscriptions.push(vscode.commands.registerCommand(`csharpExtendedNavigation.${name}`, handler));
-  context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => navigator.recordEdit(event)), output);
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument(event => navigator.recordEdit(event)),
+    vscode.workspace.onDidCloseTextDocument(document => navigator.invalidateSymbols(document)),
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('csharpExtendedNavigation') || event.affectsConfiguration('csharp') || event.affectsConfiguration('dotnet')) navigator.clearSymbolCache();
+    }),
+    vscode.extensions.onDidChange(() => navigator.clearSymbolCache()),
+    output
+  );
 }
 
 export function deactivate(): void {}
