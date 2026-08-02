@@ -13,6 +13,7 @@ export interface ContextSymbol {
   readonly range: vscode.Range;
   readonly selectionRange: vscode.Range;
   readonly depth: number;
+  readonly uri?: vscode.Uri;
 }
 
 export function flattenSymbols(symbols: readonly vscode.DocumentSymbol[], depth = 0): ContextSymbol[] {
