@@ -1,7 +1,7 @@
 {
   "name": "csharp-extended-navigation",
-  "displayName": "C# Extended Navigation",
-  "description": "Rider-inspired structural and usage navigation for C# in VS Code.",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
   "version": "0.1.0",
   "publisher": "local",
   "license": "MIT",
@@ -24,21 +24,21 @@
   },
   "contributes": {
     "commands": [
-      { "command": "csharpExtendedNavigation.nextContext", "title": "C#: Go to Next Context", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.previousContext", "title": "C#: Go to Previous Context", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.nextMethod", "title": "C#: Go to Next Method", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.previousMethod", "title": "C#: Go to Previous Method", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.nextType", "title": "C#: Go to Next Type", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.previousType", "title": "C#: Go to Previous Type", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.nextVariable", "title": "C#: Go to Next Variable", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.previousVariable", "title": "C#: Go to Previous Variable", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.containingContext", "title": "C#: Go to Containing Context", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.contextPicker", "title": "C#: Navigate to Context…", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.nextUsage", "title": "C#: Go to Next Usage", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.previousUsage", "title": "C#: Go to Previous Usage", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.lastEdit", "title": "C#: Go to Last Edit", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.navigateBack", "title": "C#: Navigate Back", "category": "C# Navigation" },
-      { "command": "csharpExtendedNavigation.navigateForward", "title": "C#: Navigate Forward", "category": "C# Navigation" }
+      { "command": "csharpExtendedNavigation.nextContext", "title": "%command.nextContext%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.previousContext", "title": "%command.previousContext%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.nextMethod", "title": "%command.nextMethod%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.previousMethod", "title": "%command.previousMethod%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.nextType", "title": "%command.nextType%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.previousType", "title": "%command.previousType%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.nextVariable", "title": "%command.nextVariable%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.previousVariable", "title": "%command.previousVariable%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.containingContext", "title": "%command.containingContext%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.contextPicker", "title": "%command.contextPicker%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.nextUsage", "title": "%command.nextUsage%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.previousUsage", "title": "%command.previousUsage%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.lastEdit", "title": "%command.lastEdit%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.navigateBack", "title": "%command.navigateBack%", "category": "%command.category%" },
+      { "command": "csharpExtendedNavigation.navigateForward", "title": "%command.navigateForward%", "category": "%command.category%" }
     ],
     "keybindings": [
       { "command": "csharpExtendedNavigation.nextMethod", "key": "ctrl+alt+down", "mac": "cmd+alt+down", "when": "editorTextFocus && editorLangId == csharp" },
@@ -53,11 +53,11 @@
       ]
     },
     "configuration": {
-      "title": "C# Extended Navigation",
+      "title": "%configuration.title%",
       "properties": {
-        "csharpExtendedNavigation.wrapAround": { "type": "boolean", "default": true, "description": "Wrap to the first or last context at file boundaries." },
-        "csharpExtendedNavigation.includeLocalVariables": { "type": "boolean", "default": true, "description": "Include local variables in context and variable navigation." },
-        "csharpExtendedNavigation.revealPosition": { "type": "string", "enum": ["center", "top", "default"], "default": "center", "description": "Where to reveal a navigation target in the editor." }
+        "csharpExtendedNavigation.wrapAround": { "type": "boolean", "default": true, "description": "%configuration.wrapAround%" },
+        "csharpExtendedNavigation.includeLocalVariables": { "type": "boolean", "default": true, "description": "%configuration.includeLocalVariables%" },
+        "csharpExtendedNavigation.revealPosition": { "type": "string", "enum": ["center", "top", "default"], "default": "center", "description": "%configuration.revealPosition%" }
       }
     }
   },
