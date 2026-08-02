@@ -30,6 +30,28 @@ Commands marked **Not assigned**, along with the remaining commands, intentional
 
 Install and enable a C# language extension that implements document symbols and references, such as Microsoft's C# extension/C# Dev Kit or OmniSharp. Results become available after that language server has finished loading the solution.
 
+## Installation
+
+### From the VS Code Marketplace
+
+Once published, install **C# Extended Navigation** from the [VS Code Marketplace](https://marketplace.visualstudio.com/VSCode) or run **Extensions: Install Extensions** in VS Code, search for `C# Extended Navigation`, and select **Install**. Reload VS Code if prompted.
+
+### From a VSIX file
+
+To install a release before it is available on the Marketplace:
+
+1. Download the `.vsix` file from the project's [GitHub releases](https://github.com/somedeveloper00/csharp-navigation-extension/releases).
+2. In VS Code, open the Extensions view, select the **…** menu, then choose **Install from VSIX…**.
+3. Select the downloaded file and reload VS Code when prompted.
+
+Alternatively, install it from a terminal:
+
+```sh
+code --install-extension csharp-extended-navigation-<version>.vsix
+```
+
+After installation, open a C# workspace and wait for C# Dev Kit or OmniSharp to finish loading. Use the Command Palette and search for **C# Navigation** to run a command.
+
 ## Settings
 
 - `csharpExtendedNavigation.wrapAround`: continue at the other end of a file (default: `true`).
