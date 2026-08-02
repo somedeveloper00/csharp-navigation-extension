@@ -1,23 +1,19 @@
 import * as vscode from 'vscode';
 import { belongsToGroup, containingSymbol, ContextGroup, ContextSymbol, flattenSymbols, nextIndex, symbolKindName } from './navigation';
+import { EditHistory } from './editHistory';
 import { normalizeSymbols } from './symbolNormalization';
 
 class Navigator {
   private readonly backStack: vscode.Location[] = [];
   private readonly forwardStack: vscode.Location[] = [];
-  private readonly edits: vscode.Location[] = [];
+  private readonly edits = new EditHistory();
   private navigating = false;
 
   constructor(private readonly output: vscode.OutputChannel) {}
 
   recordEdit(event: vscode.TextDocumentChangeEvent): void {
     if (this.navigating || event.document.languageId !== 'csharp' || !event.contentChanges.length) return;
-    const position = event.contentChanges[0].range.start;
-    const last = this.edits.at(-1);
-    if (!last || last.uri.toString() !== event.document.uri.toString() || last.range.start.line !== position.line) {
-      this.edits.push(new vscode.Location(event.document.uri, position));
-      if (this.edits.length > 100) this.edits.shift();
-    }
+    this.edits.record(event.contentChanges.map(change => new vscode.Location(event.document.uri, change.range.start)));
   }
 
   async move(group: ContextGroup, direction: 1 | -1): Promise<void> {
@@ -64,9 +60,8 @@ class Navigator {
   }
 
   async lastEdit(): Promise<void> {
-    const target = this.edits.pop();
-    if (!target) return this.inform('No recorded C# edits in this session.');
-    await this.go(target);
+    const revealed = await this.edits.revealPrevious(this.currentLocation(), target => this.go(target));
+    if (!revealed) this.inform('No previous C# edit location in this session.');
   }
 
   async history(direction: 'back' | 'forward'): Promise<void> {

@@ -1,9 +1,9 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import { normalizeSymbols, NormalizableSymbol } from './symbolNormalization';
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const { normalizeSymbols } = require('../dist/symbolNormalization');
 
-const position = (line: number, character: number) => ({ line, character });
-const symbol = (name: string, line: number, character: number, options: Partial<NormalizableSymbol> = {}): NormalizableSymbol => ({
+const position = (line, character) => ({ line, character });
+const symbol = (name, line, character, options = {}) => ({
   name,
   kind: 11,
   depth: 0,

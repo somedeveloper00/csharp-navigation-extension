@@ -19,12 +19,12 @@ All commands are available from the Command Palette under **C# Navigation**.
 
 | Action | Windows / Linux | macOS |
 | --- | --- | --- |
-| Next / previous context | `Alt+Down` / `Alt+Up` | `Alt+Down` / `Alt+Up` |
+| Next / previous context | Not assigned | Not assigned |
 | Next / previous method | `Ctrl+Alt+Down` / `Ctrl+Alt+Up` | `Cmd+Alt+Down` / `Cmd+Alt+Up` |
 | Context picker | `Ctrl+Shift+Alt+N` | `Cmd+Shift+Alt+N` |
 | Next usage | `Ctrl+Alt+F7` | `Cmd+Alt+F7` |
 
-The remaining commands intentionally have no default binding so they do not override common VS Code bindings. Assign them with **Preferences: Open Keyboard Shortcuts**.
+Commands marked **Not assigned**, along with the remaining commands, intentionally have no default binding so they do not override common VS Code bindings. In particular, VS Code uses `Alt+Up` and `Alt+Down` to move lines on Windows, Linux, and macOS. Assign the context-navigation commands with **Preferences: Open Keyboard Shortcuts** if you want to opt in.
 
 ## Requirements
 
