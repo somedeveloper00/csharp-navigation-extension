@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { belongsToGroup, containingSymbol, ContextGroup, ContextSymbol, flattenSymbols, nextIndex, symbolKindName } from './navigation';
 import { EditHistory } from './editHistory';
+import { normalizeSymbols } from './symbolNormalization';
 
 export class Navigator {
   private readonly backStack: vscode.Location[] = [];
@@ -94,8 +95,23 @@ export class Navigator {
       return undefined;
     }
     if (!result?.length) { this.inform('No C# symbols found. Ensure the C# language server is installed and ready.'); return []; }
-    if (result[0] instanceof vscode.DocumentSymbol) return flattenSymbols(result as vscode.DocumentSymbol[]);
-    return (result as vscode.SymbolInformation[]).map(symbol => ({ name: symbol.name, detail: symbol.containerName, kind: symbol.kind, range: symbol.location.range, selectionRange: symbol.location.range, depth: 0 }));
+    if (result[0] instanceof vscode.DocumentSymbol) return normalizeSymbols(flattenSymbols(result as vscode.DocumentSymbol[]));
+
+    const documentUri = document.uri.toString();
+    const symbols = (result as vscode.SymbolInformation[])
+      .filter(symbol => symbol.location.uri.toString() === documentUri)
+      .map(symbol => ({
+        name: symbol.name,
+        detail: symbol.containerName,
+        kind: symbol.kind,
+        range: symbol.location.range,
+        selectionRange: symbol.location.range,
+        // SymbolInformation has no parent/child relationship or enclosing range.
+        // Keeping it flat avoids presenting an invented hierarchy.
+        depth: 0,
+        uri: symbol.location.uri
+      }));
+    return normalizeSymbols(symbols);
   }
 
   private async go(target: vscode.Location): Promise<void> {
