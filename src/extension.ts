@@ -2,19 +2,28 @@ import * as vscode from 'vscode';
 import { belongsToGroup, containingSymbol, ContextGroup, ContextSymbol, flattenSymbols, nextIndex, symbolKindName } from './navigation';
 import { EditHistory } from './editHistory';
 import { normalizeSymbols } from './symbolNormalization';
+import { VersionedCache } from './symbolCache';
 
 export class Navigator {
   private readonly backStack: vscode.Location[] = [];
   private readonly forwardStack: vscode.Location[] = [];
   private readonly edits = new EditHistory();
   private navigating = false;
+  private readonly symbolCache = new VersionedCache<ContextSymbol[] | undefined>();
 
   constructor(private readonly output: vscode.OutputChannel) {}
 
   recordEdit(event: vscode.TextDocumentChangeEvent): void {
+    this.invalidateSymbols(event.document);
     if (this.navigating || event.document.languageId !== 'csharp' || !event.contentChanges.length) return;
     this.edits.record(event.contentChanges.map(change => new vscode.Location(event.document.uri, change.range.start)));
   }
+
+  invalidateSymbols(document: vscode.TextDocument): void {
+    this.symbolCache.delete(document.uri.toString());
+  }
+
+  clearSymbolCache(): void { this.symbolCache.clear(); }
 
   async move(group: ContextGroup, direction: 1 | -1): Promise<void> {
     const editor = this.csharpEditor();
@@ -87,31 +96,33 @@ export class Navigator {
   }
 
   private async symbols(document: vscode.TextDocument): Promise<ContextSymbol[] | undefined> {
-    let result: (vscode.DocumentSymbol | vscode.SymbolInformation)[] | undefined;
-    try {
-      result = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>('vscode.executeDocumentSymbolProvider', document.uri);
-    } catch (error) {
-      this.failure('C# symbol provider is not ready.', `Document symbol provider failed for ${document.uri.toString()}`, error);
-      return undefined;
-    }
-    if (!result?.length) { this.inform('No C# symbols found. Ensure the C# language server is installed and ready.'); return []; }
-    if (result[0] instanceof vscode.DocumentSymbol) return normalizeSymbols(flattenSymbols(result as vscode.DocumentSymbol[]));
+    return this.symbolCache.get(document.uri.toString(), document.version, async () => {
+      let result: (vscode.DocumentSymbol | vscode.SymbolInformation)[] | undefined;
+      try {
+        result = await vscode.commands.executeCommand<(vscode.DocumentSymbol | vscode.SymbolInformation)[]>('vscode.executeDocumentSymbolProvider', document.uri);
+      } catch (error) {
+        this.failure('C# symbol provider is not ready.', `Document symbol provider failed for ${document.uri.toString()}`, error);
+        return undefined;
+      }
+      if (!result?.length) { this.inform('No C# symbols found. Ensure the C# language server is installed and ready.'); return []; }
+      if (result[0] instanceof vscode.DocumentSymbol) return normalizeSymbols(flattenSymbols(result as vscode.DocumentSymbol[]));
 
-    const documentUri = document.uri.toString();
-    const symbols = (result as vscode.SymbolInformation[])
-      .filter(symbol => symbol.location.uri.toString() === documentUri)
-      .map(symbol => ({
-        name: symbol.name,
-        detail: symbol.containerName,
-        kind: symbol.kind,
-        range: symbol.location.range,
-        selectionRange: symbol.location.range,
-        // SymbolInformation has no parent/child relationship or enclosing range.
-        // Keeping it flat avoids presenting an invented hierarchy.
-        depth: 0,
-        uri: symbol.location.uri
-      }));
-    return normalizeSymbols(symbols);
+      const documentUri = document.uri.toString();
+      const symbols = (result as vscode.SymbolInformation[])
+        .filter(symbol => symbol.location.uri.toString() === documentUri)
+        .map(symbol => ({
+          name: symbol.name,
+          detail: symbol.containerName,
+          kind: symbol.kind,
+          range: symbol.location.range,
+          selectionRange: symbol.location.range,
+          // SymbolInformation has no parent/child relationship or enclosing range.
+          // Keeping it flat avoids presenting an invented hierarchy.
+          depth: 0,
+          uri: symbol.location.uri
+        }));
+      return normalizeSymbols(symbols);
+    }, symbols => symbols !== undefined && symbols.length > 0);
   }
 
   private async go(target: vscode.Location): Promise<void> {
@@ -174,7 +185,15 @@ export function activate(context: vscode.ExtensionContext): void {
     navigateBack: () => navigator.history('back'), navigateForward: () => navigator.history('forward')
   };
   for (const [name, handler] of Object.entries(commands)) context.subscriptions.push(vscode.commands.registerCommand(`csharpExtendedNavigation.${name}`, handler));
-  context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => navigator.recordEdit(event)), output);
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument(event => navigator.recordEdit(event)),
+    vscode.workspace.onDidCloseTextDocument(document => navigator.invalidateSymbols(document)),
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('csharpExtendedNavigation') || event.affectsConfiguration('csharp') || event.affectsConfiguration('dotnet')) navigator.clearSymbolCache();
+    }),
+    vscode.extensions.onDidChange(() => navigator.clearSymbolCache()),
+    output
+  );
 }
 
 export function deactivate(): void {}
